@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-from telnetlib3 import Telnet
+from prometheus_client import start_http_server, Gauge
 import re
+from telnetlib3 import Telnet
+import time
 
 host = "192.168.4.254"
 user = "admin4me"
@@ -76,26 +78,27 @@ def get_rssi(ont: Telnet):
     regexp = r".*receive RSSI = +([\-0-9]*\.[0-9]*).*"
     m = re.search(regexp, datas, re.DOTALL)
     if m:
-        ontdatas['rcv_rssi'] = m.group(1)
+        ontdatas['rcv_rssi'] = float(m.group(1))
 
     regexp = r".*transmit RSSI = +([\-0-9]*\.[0-9]*).*"
     m = re.search(regexp, datas, re.DOTALL)
     if m:
-        ontdatas['transmit_rssi'] = m.group(1)
+        ontdatas['transmit_rssi'] = float(m.group(1))
 
     regexp = r".*Temperature = +([\-0-9]*\.[0-9]*).*"
     m = re.search(regexp, datas, re.DOTALL)
     if m:
-        ontdatas['Temperature'] = m.group(1)
+        ontdatas['Temperature'] = float(m.group(1))
 
     regexp = r".*Vcc = +([\-0-9]*\.[0-9]*).*"
     m = re.search(regexp, datas, re.DOTALL)
     if m:
-        ontdatas['Vcc'] = m.group(1)
+        ontdatas['Vcc'] = float(m.group(1))
+
     regexp = r".*Bias Current = +([\-0-9]*\.[0-9]*).*"
     m = re.search(regexp, datas, re.DOTALL)
     if m:
-        ontdatas['Bias Current'] = m.group(1)
+        ontdatas['Bias Current'] = float(m.group(1))
 
 
 def get_firmware(ont: Telnet):
@@ -118,30 +121,21 @@ def get_ranging(ont: Telnet):
 
 
 if __name__ == "__main__":
-    ont = ont_open(host, user, password)
-    get_led_status(ont)
-    get_firmware(ont)
-    get_rssi(ont)
-    get_password(ont)
-    get_serial_number(ont)
-    get_ranging(ont)
-    print("sfront,host=%s ontpassword=\"%s\",ontserial=\"%s\",rcv_rssi=%s,transmit_rssi=%s,bias_current=%s,"
-          "temperature=%s,active_firmware=\"%s\",passive_firmware=\"%s\",eqpt=\"%s\",mgmt=\"%s\",pon=\"%s\","
-          "lan=\"%s\",vcc=%s,ranging=%s" % (
-           host_tag,
-           ontdatas['Password'],
-           ontdatas['Serial Number'],
-           ontdatas['rcv_rssi'],
-           ontdatas['transmit_rssi'],
-           ontdatas['Bias Current'],
-           ontdatas['Temperature'],
-           ontdatas["Active"],
-           ontdatas["Passive"],
-           ontdatas['EQPT'],
-           ontdatas['MGMT'],
-           ontdatas['PON'],
-           ontdatas['LAN'],
-           ontdatas['Vcc'],
-           ontdatas['Ranging'],
-    ))
+    start_http_server(8000)
 
+    receive_rssi_metric = Gauge("receive_rssi", "Receive signal power in dbm")
+    transmit_rssi_metric = Gauge('transmit_rssi', "Transmit signal power in dbm")
+    temperature_metric = Gauge("temp", "ONT temperature in °C")
+
+    while True:
+        ont = ont_open(host, user, password)
+        get_led_status(ont)
+        get_rssi(ont)
+
+        receive_rssi_metric.set(ontdatas["rcv_rssi"])
+        transmit_rssi_metric.set(ontdatas["transmit_rssi"])
+        temperature_metric.set(ontdatas["Temperature"])
+
+        ont.close()
+
+        time.sleep(30)
