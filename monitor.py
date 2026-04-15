@@ -41,16 +41,16 @@ def get_led_status(ont: Telnet):
     regexp_prestate = r".*PRESTATE +([A-Z]+) +([A-Z]+) +([A-Z]+) +([A-Z]+) +.*"
     regexp_ledstate = r".*LEDSTATE +([A-Z]+) +([A-Z]+) +.*"
     ledcolors = re.search(regexp_colors, datas, re.DOTALL)
-    ledstates = re.search(regexp_ledstate, datas, re.DOTALL)
     curstates = re.search(regexp_curstate, datas, re.DOTALL)
     prestates = re.search(regexp_prestate, datas, re.DOTALL)
+    ledstates = re.search(regexp_ledstate, datas, re.DOTALL)
     index = 1
     for led in lednames:
         leds[led] = {}
         leds[led]['color'] = ledcolors.group(index)
         leds[led]['curstate'] = curstates.group(index)
         leds[led]['prestate'] = prestates.group(index)
-        if led == "PON" or led == "LAN":
+        if ledstates and (led == "PON" or led == "LAN"):
             leds[led]['ledstate'] = ledstates.group(index // 2)
         ontdatas[led] = ledcolors.group(index)
         index += 1
@@ -128,14 +128,17 @@ if __name__ == "__main__":
     temperature_metric = Gauge("temp", "ONT temperature in °C")
 
     while True:
-        ont = ont_open(host, user, password)
-        get_led_status(ont)
-        get_rssi(ont)
+        try:
+            ont = ont_open(host, user, password)
+            get_led_status(ont)
+            get_rssi(ont)
 
-        receive_rssi_metric.set(ontdatas["rcv_rssi"])
-        transmit_rssi_metric.set(ontdatas["transmit_rssi"])
-        temperature_metric.set(ontdatas["Temperature"])
+            receive_rssi_metric.set(ontdatas["rcv_rssi"])
+            transmit_rssi_metric.set(ontdatas["transmit_rssi"])
+            temperature_metric.set(ontdatas["Temperature"])
 
-        ont.close()
+            ont.close()
+        except Exception as e:
+            print(str(e))
 
         time.sleep(30)
